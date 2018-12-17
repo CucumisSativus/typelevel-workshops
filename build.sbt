@@ -4,10 +4,12 @@ version := "0.1"
 
 scalaVersion := "2.12.8"
 
+lazy val specs2Version = "4.3.4"
 libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "1.1.0",
-  "org.specs2" %% "specs2-core" % "4.3.4" % "test",
-  "org.specs2" %% "specs2-cats" % "4.3.4" % "test",
+  "org.specs2" %% "specs2-core" % specs2Version % "test",
+  "org.specs2" %% "specs2-cats" % specs2Version % "test",
+  "org.specs2" %% "specs2-scalacheck" % specs2Version % "test"
 )
 
 scalacOptions ++= Seq(

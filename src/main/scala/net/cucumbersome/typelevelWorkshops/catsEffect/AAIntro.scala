@@ -131,4 +131,10 @@ object AAIntro {
 
     res("racing result")(runTasks.unsafeRunSync())
   }
+
+  h1("attempt")
+
+  val againFailingTask: IO[String] = IO.raiseError(new Exception("it happend"))
+
+  val attemptedTask: IO[Either[Throwable, String]] = againFailingTask.attempt
 }
