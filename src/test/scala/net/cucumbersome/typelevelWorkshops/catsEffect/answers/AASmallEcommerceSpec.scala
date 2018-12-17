@@ -10,8 +10,9 @@ import net.cucumbersome.typelevelWorkshops.catsEffect.answers.AASmallEcommerceSp
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import cats.implicits._
 class AASmallEcommerceSpec extends BaseTest {
-  val product = Product("product1", Price(100, Currency.CHF), Price(89, Currency.EUR), Price(376, Currency.PLN))
+  val product = Product("product1", Price(100, Currency.CHF), Price(376, Currency.PLN), Price(89, Currency.EUR))
   "As a shop owner" >> {
     "I want to create new product and have my prices calculated with exchange rate" >> {
       val chfToEur = (quantity: Double) => IO.pure(Price(quantity * 0.89, Currency.EUR))
@@ -70,11 +71,11 @@ class AASmallEcommerceSpec extends BaseTest {
 
 object AASmallEcommerceSpec {
 
-  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
+  private[answers] implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
 
-  sealed trait Currency
+  private[answers] sealed trait Currency
 
-  object Currency {
+  private[answers] object Currency {
 
     case object CHF extends Currency
 
@@ -84,30 +85,37 @@ object AASmallEcommerceSpec {
   }
 
 
-  final case class Price(quantity: Double, currency: Currency)
+  private[answers] final case class Price(quantity: Double, currency: Currency)
 
-  final case class Product(name: String, priceInChf: Price, priceInPln: Price, priceInEur: Price)
+  private[answers] final case class Product(name: String, priceInChf: Price, priceInPln: Price, priceInEur: Price)
 
-  object ProductWizard{
+  private[answers] object ProductWizard{
     def create(getPlnExchange: Double => IO[Price], getEurExchange: Double => IO[Price])
-              (name: String, priceInChf: Price): IO[Product] = ???
+              (name: String, priceInChf: Price): IO[Product] = {
+      (getPlnExchange(priceInChf.quantity), getEurExchange(priceInChf.quantity)).parMapN{ case(plnPrice, eurPrice) =>
+          Product(name, priceInChf, plnPrice, eurPrice)
+      }
+    }
   }
 
-  object ElasticSearchIndexer{
+  private[answers] object ElasticSearchIndexer{
     case class IndexingError(msg: String)
-    def index(esClient: Product => Future[Unit])(product: Product): IO[Either[IndexingError, Unit]] = ???
+    def index(esClient: Product => Future[Unit])(product: Product): IO[Either[IndexingError, Unit]] = {
+      RetryHander.retry(IO.fromFuture(IO(esClient(product))).map(_.asRight[IndexingError]), 3)
+        .handleErrorWith(_ => IO.pure(Left(IndexingError("it failed"))))
+    }
   }
 
-  object ProductController{
+  private[answers] object ProductController{
     def create(wizard: (String, Price) => IO[Product])(name: String, priceInChf: Price): Future[String] = {
-      // call wizard and then serve
-      ???
+      // pass arguments to wizard and turn it into future
+      serve(wizard(name, priceInChf).unsafeToFuture())
     }
 
     def serve(res: Future[Product]): Future[String] = res.map(p => s"<html><h1>${p.name}</h1></html>")
   }
 
-  class TwoTimesFailingClient{
+  private[answers] class TwoTimesFailingClient{
     private val retryCount = new AtomicInteger(0)
     def save(p: Product): Future[Unit] = {
       if(retryCount.getAndIncrement() == 2) Future.successful(())
@@ -115,16 +123,19 @@ object AASmallEcommerceSpec {
     }
   }
 
-  class AlwaysFailingClient{
+  private[answers] class AlwaysFailingClient{
     def save(p: Product): Future[Unit] = {
       Future.failed(new Exception("this one always fails"))
     }
   }
 
-  object RetryHander{
+  private[answers] object RetryHander{
     def retry[T](t: IO[T], maxRetriesNum: Int): IO[T] = {
-      // attempt on t and then flat map, in case of failure call retry again, IO is stack safe
-      ???
+      // handle error of t and if you can still retry, retry! IO is stack safe
+      t.handleErrorWith{
+        case e if maxRetriesNum > 0 => retry(t, maxRetriesNum -1)
+        case e => IO.raiseError(e)
+      }
     }
   }
 }
