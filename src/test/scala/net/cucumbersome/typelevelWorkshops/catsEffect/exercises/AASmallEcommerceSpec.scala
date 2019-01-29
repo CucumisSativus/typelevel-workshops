@@ -93,6 +93,8 @@ object AASmallEcommerceSpec {
   private[exercises] object ProductWizard{
     def create(getPlnExchange: Double => IO[Price], getEurExchange: Double => IO[Price])
               (name: String, priceInChf: Price): IO[Product] = {
+      // call getPlnExchange and getEurExchange in parallel and build the result
+      // remember that you already have price in chf and name!
       ???
 
     }
@@ -101,6 +103,9 @@ object AASmallEcommerceSpec {
   private[exercises] object ElasticSearchIndexer{
     case class IndexingError(msg: String)
     def index(esClient: Product => Future[Unit])(product: Product): IO[Either[IndexingError, Unit]] = {
+      // Implement and use retry handler from the bottom of this class,
+      // the idea of RetryHandler is such, that in case of error after the retry is reached, it just fails
+      // so make sure that you put your transformation from exception to either in a right place!
       ???
     }
   }
@@ -108,6 +113,8 @@ object AASmallEcommerceSpec {
   private[exercises] object ProductController{
     def create(wizard: (String, Price) => IO[Product])(name: String, priceInChf: Price): Future[String] = {
       // pass arguments to wizard and turn it into future
+      // then use `serve` method defined below
+
       ???
     }
 
@@ -131,6 +138,8 @@ object AASmallEcommerceSpec {
   private[exercises] object RetryHander{
     def retry[T](t: IO[T], maxRetriesNum: Int): IO[T] = {
       // handle error of t and if you can still retry, retry! IO is stack safe
+      // the idea here is to handle error as long as you can retry
+      // if after last retry error is still there, just return failed IO
       ???
     }
   }
